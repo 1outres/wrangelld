@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/1outres/wrangell/pkg/wrangellpkt"
+	"github.com/1outres/wrangelld/internal/pkg/client"
 	"github.com/1outres/wrangelld/xdp"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -39,7 +41,7 @@ type (
 	}
 
 	manager struct {
-		handler        SynHandler
+		udpClient      client.Client
 		ready          bool
 		targetsMap     *ebpf.Map
 		deferFunctions []func()
@@ -134,7 +136,13 @@ func (m *manager) Start(ifname string) error {
 
 			log.Debug(packet)
 
-			err = m.handler.Handle(&event)
+			err = m.udpClient.Send(wrangellpkt.Packet{
+				Msg: wrangellpkt.MessageRequest,
+				ReqPacket: &wrangellpkt.ReqPacket{
+					Ip:   event.DstIp,
+					Port: event.DstPort,
+				},
+			})
 			if err != nil {
 				log.Fatal("Handling event:", err)
 			}
@@ -199,9 +207,9 @@ func generateKey(ip uint32, port uint16) uint64 {
 	return uint64(ip<<16) | uint64(port) // IPアドレスとポートを64ビット整数に組み合わせ
 }
 
-func NewManager(handler SynHandler) Manager {
+func NewManager(udpClient client.Client) Manager {
 	return &manager{
-		handler:        handler,
+		udpClient:      udpClient,
 		deferFunctions: make([]func(), 0),
 	}
 }

@@ -1,11 +1,11 @@
 package app
 
 import (
-	"encoding/binary"
+	"github.com/1outres/wrangell/pkg/wrangellpkt"
+	"github.com/1outres/wrangelld/internal/pkg/client"
 	"github.com/1outres/wrangelld/internal/pkg/xdp"
 	"github.com/labstack/gommon/log"
 	"github.com/urfave/cli/v2"
-	"net"
 	"os"
 	"os/signal"
 )
@@ -13,10 +13,32 @@ import (
 var version string
 
 type (
-	handler struct {
-		function func(packet *xdp.SynPacket) error
+	targetHandler struct {
+		xdpManager xdp.Manager
 	}
 )
+
+func (t targetHandler) setXdpManager(xdpManager xdp.Manager) {
+	t.xdpManager = xdpManager
+}
+
+func (t targetHandler) Handle(pkt *wrangellpkt.TargetPacket) {
+	if t.xdpManager == nil {
+		log.Error("xdp manager is not set")
+		return
+	}
+
+	var err error
+	if pkt.Replicas == 0 {
+		err = t.xdpManager.SetTargetInfo(pkt.Ip, pkt.Port)
+	} else {
+		err = t.xdpManager.RemoveTargetInfo(pkt.Ip)
+	}
+
+	if err != nil {
+		log.Error(err)
+	}
+}
 
 func New() *cli.App {
 	app := &cli.App{}
@@ -31,8 +53,8 @@ func New() *cli.App {
 			Name: "debug",
 		},
 		&cli.StringFlag{
-			Name:     "ifname",
-			Required: true,
+			Name:  "ifname",
+			Value: "eth0",
 		},
 	}
 
@@ -44,11 +66,22 @@ func New() *cli.App {
 	}
 
 	app.Action = func(c *cli.Context) error {
-		handler := newHandler(func(packet *xdp.SynPacket) error {
-			return nil
-		})
 
-		xdpManager := xdp.NewManager(handler)
+		handler := &targetHandler{}
+
+		udpClient := client.NewClient(handler, "wrangell-udp-service.wrangell-system.svc:3030")
+		defer udpClient.Close()
+
+		go func() {
+			err := udpClient.Connect()
+			if err != nil {
+				log.Error(err, "unable to start server")
+				os.Exit(1)
+			}
+		}()
+
+		xdpManager := xdp.NewManager(udpClient)
+		handler.setXdpManager(xdpManager)
 
 		err := xdpManager.Start(c.String("ifname"))
 		if err != nil {
@@ -65,21 +98,4 @@ func New() *cli.App {
 	}
 
 	return app
-}
-
-func ip2int(ip net.IP) uint32 {
-	if len(ip) == 16 {
-		return binary.BigEndian.Uint32(ip[12:16])
-	}
-	return binary.BigEndian.Uint32(ip)
-}
-
-func newHandler(function func(packet *xdp.SynPacket) error) xdp.SynHandler {
-	return &handler{
-		function: function,
-	}
-}
-
-func (h handler) Handle(packet *xdp.SynPacket) error {
-	return nil
 }

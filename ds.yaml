@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: wrangelld
+  namespace: wrangell-system
+spec:
+  selector:
+    matchLabels:
+      name: wrangelld
+  template:
+    metadata:
+      labels:
+        name: wrangelld
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: wrangelld
+        image: wrangelld:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: true
+        resources:
+          limits:
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        volumeMounts:
+          - name: sys
+            mountPath: /sys
+            readOnly: true
+          - name: headers
+            mountPath: /usr/src
+            readOnly: true
+          - name: modules
+            mountPath: /lib/modules
+            readOnly: true
+          - name: bin
+            mountPath: /host/usr/bin
+            readOnly: true
+      volumes:
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: headers
+          hostPath:
+            path: /usr/src
+        - name: modules
+          hostPath:
+            path: /lib/modules
+        - name: bin
+          hostPath:
+            path: /usr/bin
