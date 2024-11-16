@@ -139,8 +139,8 @@ func (m *manager) Start(ifname string) error {
 			err = m.udpClient.Send(wrangellpkt.Packet{
 				Msg: wrangellpkt.MessageRequest,
 				ReqPacket: &wrangellpkt.ReqPacket{
-					Ip:   event.DstIp,
-					Port: event.DstPort,
+					Ip:   ntohl(event.DstIp),
+					Port: ntohs(event.DstPort),
 				},
 			})
 			if err != nil {
@@ -172,6 +172,9 @@ func (m *manager) RemoveTargetInfo(ip uint32) error {
 
 	err := m.targetsMap.Delete(ip)
 	if err != nil {
+		if err.Error() == ebpf.ErrKeyNotExist.Error() {
+			return nil
+		}
 		return err
 	}
 

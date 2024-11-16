@@ -17,6 +17,6 @@ WORKDIR /
 
 COPY --from=builder /wrangelld /wrangelld
 
-USER nonroot:nonroot
+USER root:root
 
 ENTRYPOINT ["/wrangelld"]

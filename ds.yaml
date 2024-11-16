@@ -18,10 +18,20 @@ spec:
         effect: NoSchedule
       containers:
       - name: wrangelld
+        args:
+          - --debug
+          - --ifname
+          - ens3
         image: wrangelld:latest
         imagePullPolicy: IfNotPresent
         securityContext:
           privileged: true
+          runAsGroup: 0
+          runAsUser: 0
+          capabilities:
+            add:
+              - NET_ADMIN
+              - SYS_ADMIN
         resources:
           limits:
             memory: 200Mi
@@ -54,3 +64,5 @@ spec:
         - name: bin
           hostPath:
             path: /usr/bin
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
